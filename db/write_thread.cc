@@ -30,7 +30,8 @@ WriteThread::WriteThread(const ImmutableDBOptions& db_options)
       last_sequence_(0),
       write_stall_dummy_(),
       stall_mu_(),
-      stall_cv_(&stall_mu_) {}
+      stall_cv_(&stall_mu_),
+      logger_(db_options.info_log.get()) {}
 
 uint8_t WriteThread::BlockingAwaitState(Writer* w, uint8_t goal_mask) {
   // We're going to block.  Lazily create the mutex.  We guarantee
@@ -139,7 +140,6 @@ uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
   // The samling base for updating the yeild credit. The sampling rate would be
   // 1/sampling_base.
   const int sampling_base = 256;
-
 
   if (max_yield_usec_ > 0) {
     update_ctx = Random::GetTLSInstance()->OneIn(sampling_base);
@@ -392,8 +392,9 @@ void WriteThread::JoinBatchGroup(Writer* w) {
      *      writes in parallel.
      */
     TEST_SYNC_POINT_CALLBACK("WriteThread::JoinBatchGroup:BeganWaiting", w);
-    AwaitState(w, STATE_GROUP_LEADER | STATE_MEMTABLE_WRITER_LEADER |
-                      STATE_PARALLEL_MEMTABLE_WRITER | STATE_COMPLETED,
+    AwaitState(w,
+               STATE_GROUP_LEADER | STATE_MEMTABLE_WRITER_LEADER |
+                   STATE_PARALLEL_MEMTABLE_WRITER | STATE_COMPLETED,
                &jbg_ctx);
     TEST_SYNC_POINT_CALLBACK("WriteThread::JoinBatchGroup:DoneWaiting", w);
   }
@@ -414,6 +415,9 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   if (size <= (128 << 10)) {
     max_size = size + (128 << 10);
   }
+
+  ROCKS_LOG_INFO(logger_, "Leader %p's wb size: %zu, max_size: %zu", leader,
+                 size, max_size);
 
   leader->write_group = write_group;
   write_group->leader = leader;
@@ -464,10 +468,18 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
 
     auto batch_size = WriteBatchInternal::ByteSize(w->batch);
     if (size + batch_size > max_size) {
+      ROCKS_LOG_INFO(logger_,
+                     "Leader %p's wb size: %zu, follower %p's wb size: %zu > "
+                     "max_size: %zu, abort",
+                     leader, size, w, batch_size, max_size);
       // Do not make batch too big
       break;
     }
 
+    ROCKS_LOG_INFO(logger_,
+                   "Leader %p's wb size: %zu, follower %p's wb size: %zu "
+                   "max_size: %zu, ok",
+                   leader, size, w, batch_size, max_size);
     w->write_group = write_group;
     size += batch_size;
     write_group->last_writer = w;
@@ -576,10 +588,10 @@ void WriteThread::LaunchParallelMemTableWriters(WriteGroup* write_group) {
   }
 }
 
-static WriteThread::AdaptationContext cpmtw_ctx("CompleteParallelMemTableWriter");
+static WriteThread::AdaptationContext cpmtw_ctx(
+    "CompleteParallelMemTableWriter");
 // This method is called by both the leader and parallel followers
 bool WriteThread::CompleteParallelMemTableWriter(Writer* w) {
-
   auto* write_group = w->write_group;
   if (!w->status.ok()) {
     std::lock_guard<std::mutex> guard(write_group->leader->StateMutex());
@@ -678,8 +690,9 @@ void WriteThread::ExitAsBatchGroupLeader(WriteGroup& write_group,
       next_leader->link_older = nullptr;
       SetState(next_leader, STATE_GROUP_LEADER);
     }
-    AwaitState(leader, STATE_MEMTABLE_WRITER_LEADER |
-                           STATE_PARALLEL_MEMTABLE_WRITER | STATE_COMPLETED,
+    AwaitState(leader,
+               STATE_MEMTABLE_WRITER_LEADER | STATE_PARALLEL_MEMTABLE_WRITER |
+                   STATE_COMPLETED,
                &eabgl_ctx);
   } else {
     Writer* head = newest_writer_.load(std::memory_order_acquire);

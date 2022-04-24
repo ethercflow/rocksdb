@@ -154,7 +154,7 @@ class WriteThread {
     CommitRequest* request;
     SequenceNumber sequence;  // the sequence number to use for the first key
     Status status;
-    Status callback_status;   // status returned by callback->Callback()
+    Status callback_status;  // status returned by callback->Callback()
 
     std::aligned_storage<sizeof(std::mutex)>::type state_mutex_bytes;
     std::aligned_storage<sizeof(std::condition_variable)>::type state_cv_bytes;
@@ -269,7 +269,7 @@ class WriteThread {
     std::condition_variable& StateCV() {
       assert(made_waitable);
       return *static_cast<std::condition_variable*>(
-                 static_cast<void*>(&state_cv_bytes));
+          static_cast<void*>(&state_cv_bytes));
     }
   };
 
@@ -418,6 +418,8 @@ class WriteThread {
   // on the writer queue
   port::Mutex stall_mu_;
   port::CondVar stall_cv_;
+
+  Logger* logger_;
 
   // Waits for w->state & goal_mask using w->StateMutex().  Returns
   // the state that satisfies goal_mask.
