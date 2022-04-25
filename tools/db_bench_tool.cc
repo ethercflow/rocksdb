@@ -259,6 +259,9 @@ DEFINE_bool(use_uint64_comparator, false, "use Uint64 user comparator");
 
 DEFINE_int64(batch_size, 1, "Batch size");
 
+DEFINE_bool(batch_size_range, false,
+            "Range of possible value of batch size (used in DoWrite only).");
+
 static bool ValidateKeySize(const char* /*flagname*/, int32_t /*value*/) {
   return true;
 }
@@ -4134,7 +4137,14 @@ class Benchmark {
 
     int64_t stage = 0;
     int64_t num_written = 0;
-    while (!duration.Done(entries_per_batch_)) {
+
+
+    int64_t entries_per_batch = entries_per_batch_;
+    if (FLAGS_batch_size_range) {
+      entries_per_batch = thread->rand.Next() % entries_per_batch_;
+    }
+
+    while (!duration.Done(entries_per_batch)) {
       if (duration.GetStage() != stage) {
         stage = duration.GetStage();
         if (db_.db != nullptr) {
@@ -4152,14 +4162,14 @@ class Benchmark {
 
       if (thread->shared->write_rate_limiter.get() != nullptr) {
         thread->shared->write_rate_limiter->Request(
-            entries_per_batch_ * (value_size_ + key_size_), Env::IO_HIGH,
+            entries_per_batch * (value_size_ + key_size_), Env::IO_HIGH,
             nullptr /* stats */, RateLimiter::OpType::kWrite);
         // Set time at which last op finished to Now() to hide latency and
         // sleep from rate limiter. Also, do the check once per batch, not
         // once per write.
         thread->stats.ResetLastOpTime();
       }
-      for (int64_t j = 0; j < entries_per_batch_; j++) {
+      for (int64_t j = 0; j < entries_per_batch; j++) {
         int64_t rand_num = key_gens[id]->Next();
         GenerateKeyFromInt(rand_num, FLAGS_num, &key);
         if (use_blob_db_) {
@@ -4232,7 +4242,7 @@ class Benchmark {
         s = db_with_cfh->db->Write(write_options_, &batch);
       }
       thread->stats.FinishedOps(db_with_cfh, db_with_cfh->db,
-                                entries_per_batch_, kWrite);
+                                entries_per_batch, kWrite);
       if (FLAGS_sine_write_rate) {
         uint64_t now = FLAGS_env->NowMicros();
 
