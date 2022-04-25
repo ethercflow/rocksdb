@@ -467,19 +467,25 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
     }
 
     auto batch_size = WriteBatchInternal::ByteSize(w->batch);
-    if (size + batch_size > max_size) {
+    if ((size + batch_size > max_size) || (1.0 * size / batch_size >= 1.5)) {
+      /*
       ROCKS_LOG_INFO(logger_,
                      "Leader %p's wb size: %zu, follower %p's wb size: %zu > "
-                     "max_size: %zu, abort",
-                     leader, size, w, batch_size, max_size);
+                     "max_size: %zu, abort, lvf: %.2f",
+                     leader, size, w, batch_size, max_size,
+                     1.0 * size / batch_size);
+      */
       // Do not make batch too big
       break;
     }
 
+    /*
     ROCKS_LOG_INFO(logger_,
-                   "Leader %p's wb size: %zu, follower %p's wb size: %zu "
-                   "max_size: %zu, ok",
-                   leader, size, w, batch_size, max_size);
+                 "Leader %p's wb size: %zu, follower %p's wb size: %zu "
+                 "max_size: %zu, ok, lvf: %.2f",
+                 leader, size, w, batch_size, max_size,
+                 1.0 * size / batch_size);
+    */
     w->write_group = write_group;
     size += batch_size;
     write_group->last_writer = w;
