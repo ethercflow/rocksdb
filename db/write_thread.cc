@@ -467,7 +467,7 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
     }
 
     auto batch_size = WriteBatchInternal::ByteSize(w->batch);
-    if ((size + batch_size > max_size) || (1.0 * size / batch_size >= 1.5)) {
+    if ((size + batch_size > max_size) || (1.0 * size / batch_size >= 3)) {
       /*
       ROCKS_LOG_INFO(logger_,
                      "Leader %p's wb size: %zu, follower %p's wb size: %zu > "
