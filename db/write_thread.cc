@@ -416,8 +416,10 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
     max_size = size + (128 << 10);
   }
 
+  /*
   ROCKS_LOG_INFO(logger_, "Leader %p's wb size: %zu, max_size: %zu", leader,
                  size, max_size);
+  */
 
   leader->write_group = write_group;
   write_group->leader = leader;
@@ -467,7 +469,15 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
     }
 
     auto batch_size = WriteBatchInternal::ByteSize(w->batch);
-    if ((size + batch_size > max_size) || (1.0 * size / batch_size >= 3)) {
+
+    auto c1 = WriteBatchInternal::Count(leader->batch);
+    auto c2 = WriteBatchInternal::Count(w->batch);
+
+    ROCKS_LOG_INFO(logger_, "LC: %d, WC: %d, LB: %zu, WB: %zu",
+                   c1, c2, size, batch_size);
+
+    // if ((size + batch_size > max_size) || (1.0 * size / batch_size >= 3)) {
+    if (size + batch_size > max_size) {
       /*
       ROCKS_LOG_INFO(logger_,
                      "Leader %p's wb size: %zu, follower %p's wb size: %zu > "
