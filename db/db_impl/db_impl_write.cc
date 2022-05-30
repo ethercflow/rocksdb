@@ -85,7 +85,7 @@ Status DBImpl::PebbleWrite(const WriteOptions& options,
   if (immutable_db_options_.enable_pipelined_commit) {
     return PebbleWriteImpl(options, std::move(updates), nullptr, nullptr);
   } else {
-    return Status::NotSupported();
+    return Status::NotSupported("ahahahahaha\n");
   }
 }
 
