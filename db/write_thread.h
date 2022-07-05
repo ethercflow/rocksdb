@@ -271,15 +271,18 @@ class WriteThread {
       return callback_status.ok();
     }
 
-    void CreateMutex() {
+    void __attribute__ ((noinline)) CreateMutex() {
       if (!made_waitable) {
         // Note that made_waitable is tracked separately from state
         // transitions, because we can't atomically create the mutex and
         // link into the list.
         made_waitable = true;
+        #include <stdio.h>
+        fprintf(stderr, "made_waitable = true, state_mutex_bytes: %p\n", &state_mutex_bytes);
         new (&state_mutex_bytes) std::mutex;
         new (&state_cv_bytes) std::condition_variable;
       }
+      fprintf(stderr, "made_waitable = false, state_mutex_bytes: %p\n", &state_mutex_bytes);
     }
 
     // returns the aggregate status of this Writer
@@ -318,6 +321,8 @@ class WriteThread {
     // always last in the order
     std::mutex& StateMutex() {
       assert(made_waitable);
+      #include <stdio.h>
+      fprintf(stderr, "in StateMutex, state_mutex_bytes: %p\n", &state_mutex_bytes);
       return *static_cast<std::mutex*>(static_cast<void*>(&state_mutex_bytes));
     }
 

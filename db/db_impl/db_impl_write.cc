@@ -20,16 +20,19 @@
 #include "monitoring/perf_context_imp.h"
 #include "options/options_helper.h"
 #include "test_util/sync_point.h"
+#include <stdio.h>
 
 namespace rocksdb {
 // Convenience methods
 Status DBImpl::Put(const WriteOptions& o, ColumnFamilyHandle* column_family,
                    const Slice& key, const Slice& val) {
+  fprintf(stderr, "in DBImpl::Put\n");
   return DB::Put(o, column_family, key, val);
 }
 
 Status DBImpl::Merge(const WriteOptions& o, ColumnFamilyHandle* column_family,
                      const Slice& key, const Slice& val) {
+  fprintf(stderr, "in DBImpl::Merge\n");
   auto cfh = reinterpret_cast<ColumnFamilyHandleImpl*>(column_family);
   if (!cfh->cfd()->ioptions()->merge_operator) {
     return Status::NotSupported("Provide a merge_operator when opening DB");
@@ -40,12 +43,14 @@ Status DBImpl::Merge(const WriteOptions& o, ColumnFamilyHandle* column_family,
 
 Status DBImpl::Delete(const WriteOptions& write_options,
                       ColumnFamilyHandle* column_family, const Slice& key) {
+  fprintf(stderr, "in DBImpl::Delete\n");
   return DB::Delete(write_options, column_family, key);
 }
 
 Status DBImpl::SingleDelete(const WriteOptions& write_options,
                             ColumnFamilyHandle* column_family,
                             const Slice& key) {
+  fprintf(stderr, "in DBImpl::SingleDelete\n");
   return DB::SingleDelete(write_options, column_family, key);
 }
 
@@ -55,6 +60,7 @@ void DBImpl::SetRecoverableStatePreReleaseCallback(
 }
 
 Status DBImpl::Write(const WriteOptions& write_options, WriteBatch* my_batch, uint64_t* seq) {
+  fprintf(stderr, "in DBImpl::Write\n");
   return WriteImpl(write_options, my_batch, nullptr, nullptr, 0, false, seq);
 }
 
@@ -67,6 +73,7 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
 #endif  // ROCKSDB_LITE
 
 void DBImpl::MultiBatchWriteCommit(CommitRequest* request) {
+  fprintf(stderr, "in DBImpl::MultiBatchWriteCommit\n");
   write_thread_.ExitWaitSequenceCommit(request, &versions_->last_sequence_);
   size_t pending_cnt = pending_memtable_writes_.fetch_sub(1) - 1;
   if (pending_cnt == 0) {
@@ -240,7 +247,9 @@ Status DBImpl::MultiBatchWriteImpl(const WriteOptions& write_options,
     stats->AddDBStats(InternalStats::kIntStatsNumKeysWritten, total_count);
     RecordTick(stats_, NUMBER_KEYS_WRITTEN, total_count);
 
+    fprintf(stderr, "in DBImpl::MultiBatchWrite before ConsumeOne\n");
     while (writer.ConsumeOne());
+    fprintf(stderr, "in DBImpl::MultiBatchWrite after ConsumeOne\n");
     MultiBatchWriteCommit(writer.request);
 
     WriteStatusCheck(writer.status);
@@ -349,6 +358,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   }
 
   if (immutable_db_options_.enable_multi_batch_write) {
+    fprintf(stderr, "immutable_db_options_.enable_multi_batch_write\n");
     std::vector<WriteBatch*> updates(1);
     updates[0] = my_batch;
     return MultiBatchWriteImpl(write_options, std::move(updates), callback, log_used, log_ref,
@@ -356,6 +366,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   }
 
   if (immutable_db_options_.enable_pipelined_write) {
+    fprintf(stderr, "immutable_db_options_.enable_pipelined_write\n");
     return PipelinedWriteImpl(write_options, my_batch, callback, log_used,
                               log_ref, disable_memtable, seq_used);
   }
@@ -1997,6 +2008,7 @@ Status DB::SingleDelete(const WriteOptions& opt,
 Status DB::DeleteRange(const WriteOptions& opt,
                        ColumnFamilyHandle* column_family,
                        const Slice& begin_key, const Slice& end_key) {
+  fprintf(stderr, "in DB::DeleteRange");
   WriteBatch batch;
   batch.DeleteRange(column_family, begin_key, end_key);
   return Write(opt, &batch);
